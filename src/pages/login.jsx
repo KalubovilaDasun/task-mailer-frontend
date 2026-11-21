@@ -1,15 +1,23 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Lock } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaError, setCaptchaError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setCaptchaError('Please verify that you are not a robot.');
+      return;
+    }
+    setCaptchaError('');
     const extractedName = email.split('@')[0];
     localStorage.setItem('userName', extractedName);
     navigate('/dashboard');
@@ -65,6 +73,17 @@ export default function Login() {
             Forgot Password?
           </button>
         </div>
+
+        <div className="recaptcha-wrapper">
+          <ReCAPTCHA
+            sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+            onChange={(token) => {
+              setCaptchaToken(token);
+              setCaptchaError('');
+            }}
+          />
+        </div>
+        {captchaError && <p className="captcha-error">{captchaError}</p>}
 
         <button type="submit" className="btn-primary">
           LOGIN

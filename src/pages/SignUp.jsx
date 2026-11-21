@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -10,6 +11,8 @@ export default function SignUp() {
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaError, setCaptchaError] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -17,6 +20,11 @@ export default function SignUp() {
       alert('Passwords do not match!');
       return;
     }
+    if (!captchaToken) {
+      setCaptchaError('Please verify that you are not a robot.');
+      return;
+    }
+    setCaptchaError('');
     const extractedName = email.split('@')[0];
     localStorage.setItem('userName', extractedName);
     navigate('/dashboard');
@@ -82,10 +90,21 @@ export default function SignUp() {
           </button>
         </div>
 
+        <div className="recaptcha-wrapper">
+          <ReCAPTCHA
+            sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
+            onChange={(token) => {
+              setCaptchaToken(token);
+              setCaptchaError('');
+            }}
+          />
+        </div>
+        {captchaError && <p className="captcha-error">{captchaError}</p>}
+
         <button
           type="submit"
           className="btn-primary"
-          style={{ marginTop: '8px', marginBottom: '20px' }}
+          style={{ marginTop: '4px', marginBottom: '20px' }}
         >
           SIGN UP
         </button>
