@@ -17,7 +17,9 @@ export default function SignUp() {
       alert('Passwords do not match!');
       return;
     }
-    console.log({ email, password, rememberMe });
+    const extractedName = email.split('@')[0];
+    localStorage.setItem('userName', extractedName);
+    navigate('/dashboard');
   };
 
   return (

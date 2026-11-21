@@ -10,7 +10,9 @@ export default function Login() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log({ email, password, rememberMe });
+    const extractedName = email.split('@')[0];
+    localStorage.setItem('userName', extractedName);
+    navigate('/dashboard');
   };
 
   return (
