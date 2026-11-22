@@ -1,54 +1,92 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Send, CheckCircle, AlertCircle, LogOut, X } from 'lucide-react';
+import axios from 'axios';
+import { Plus, Trash2, CheckCircle, Circle, LogOut, AlertCircle, Mail } from 'lucide-react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const userId = localStorage.getItem('userId');
   const userName = localStorage.getItem('userName') || 'User';
 
-  const today = new Date();
-  const currentMonth = today.toLocaleString('en-US', { month: 'long' });
-  const formattedDate = today.toLocaleDateString('en-CA');
-
-  const [showInitialPopup, setShowInitialPopup] = useState(true);
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [showFeedbackPopup, setShowFeedbackPopup] = useState(false);
-
-  const [recipientEmail, setRecipientEmail] = useState('');
-  const [subject, setSubject] = useState(`${currentMonth} task log`);
-  const [taskContent, setTaskContent] = useState('');
+  const [tasks, setTasks] = useState([]);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [supervisorEmail, setSupervisorEmail] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleOpenEmailForm = () => {
-    setShowInitialPopup(false);
-    setShowEmailForm(true);
-    setErrorMsg('');
+  const fetchTasks = async () => {
+    try {
+      const { data } = await axios.get(`http://localhost:5000/api/tasks?userId=${userId}`);
+      setTasks(data);
+    } catch (err) {
+      setErrorMsg('Failed to load tasks.');
+    }
   };
 
-  const handleSendEmail = (e) => {
+  useEffect(() => {
+    if (userId) fetchTasks();
+  }, [userId]);
+
+  const handleAddTask = async (e) => {
     e.preventDefault();
-
-    if (!recipientEmail.trim() || !subject.trim() || !taskContent.trim()) {
-      setErrorMsg('Please fill out all fields in the email form before sending.');
-      return;
-    }
-
-    const fullEmailBody = `${formattedDate}\n\nDear Sir,\n\n${taskContent.trim()}\n\nBest Regards,\n${userName}`;
-
-    console.log({
-      to: recipientEmail,
-      subject,
-      body: fullEmailBody,
-    });
+    if (!title.trim()) return;
 
     setErrorMsg('');
-    setShowEmailForm(false);
-    setShowFeedbackPopup(true);
-    setTaskContent('');
+    setStatusMsg('');
+    setLoading(true);
+
+    try {
+      const { data } = await axios.post('http://localhost:5000/api/tasks', {
+        userId,
+        userName,
+        title,
+        description,
+        supervisorEmail,
+      });
+
+      setTasks([data.task, ...tasks]);
+      setTitle('');
+      setDescription('');
+
+      if (data.emailStatus === 'sent') {
+        setStatusMsg('Task added and supervisor notified via email!');
+      } else {
+        setStatusMsg('Task saved, but supervisor email failed. Check .env credentials.');
+      }
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Failed to add task.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleComplete = async (task) => {
+    try {
+      const updatedStatus = !task.is_completed;
+      await axios.patch(`http://localhost:5000/api/tasks/${task.id}`, {
+        is_completed: updatedStatus,
+      });
+      setTasks(
+        tasks.map((t) => (t.id === task.id ? { ...t, is_completed: updatedStatus } : t))
+      );
+    } catch (err) {
+      setErrorMsg('Failed to update task.');
+    }
+  };
+
+  const handleDeleteTask = async (id) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/tasks/${id}`);
+      setTasks(tasks.filter((t) => t.id !== id));
+    } catch (err) {
+      setErrorMsg('Failed to delete task.');
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('userName');
+    localStorage.clear();
     navigate('/login');
   };
 
@@ -56,7 +94,7 @@ export default function Dashboard() {
     <div className="dashboard-wrapper">
       <header className="dashboard-header">
         <div>
-          <h2 className="dash-brand">TaskMailer</h2>
+          <h2 className="dash-brand">Personal Assistant</h2>
           <p className="dash-welcome">Welcome, {userName}</p>
         </div>
         <button className="logout-btn" onClick={handleLogout}>
@@ -65,129 +103,133 @@ export default function Dashboard() {
         </button>
       </header>
 
-      <main className="dashboard-main">
-        {!showEmailForm && (
-          <div className="dash-card">
-            <div className="avatar-circle">
-              <Mail size={34} strokeWidth={1.5} />
-            </div>
-            <h1 className="dash-title">Daily Task Log</h1>
-            <p className="dash-subtitle">
-              Today: <strong>{formattedDate}</strong>
-            </p>
-            <button className="btn-primary" onClick={handleOpenEmailForm}>
-              ENTER TODAY TASK
-            </button>
+      <div className="email-form-card" style={{ marginBottom: '24px' }}>
+        <h3 style={{ marginBottom: '14px' }}>Add New To-Do Task</h3>
+
+        {errorMsg && (
+          <div className="error-banner">
+            <AlertCircle size={16} />
+            <span>{errorMsg}</span>
           </div>
         )}
 
-        {showEmailForm && (
-          <form className="email-form-card" onSubmit={handleSendEmail}>
-            <div className="email-form-header">
-              <h3>New Task Log Email</h3>
-              <button
-                type="button"
-                className="close-icon-btn"
-                onClick={() => setShowEmailForm(false)}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="error-banner">
-                <AlertCircle size={16} />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            <div className="form-field">
-              <label>To (Sir / Manager Email)</label>
-              <input
-                type="email"
-                placeholder="manager@company.com"
-                value={recipientEmail}
-                onChange={(e) => setRecipientEmail(e.target.value)}
-              />
-            </div>
-
-            <div className="form-field">
-              <label>Subject</label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-              />
-            </div>
-
-            <div className="email-body-box">
-              <div className="auto-text-block">
-                <p>{formattedDate}</p>
-                <p style={{ marginTop: '8px' }}>Dear Sir,</p>
-              </div>
-
-              <textarea
-                className="task-textarea"
-                rows="6"
-                placeholder="Type your tasks for today here..."
-                value={taskContent}
-                onChange={(e) => setTaskContent(e.target.value)}
-              />
-
-              <div className="auto-text-block">
-                <p>Best Regards,</p>
-                <p><strong>{userName}</strong></p>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary send-btn">
-              <Send size={16} />
-              <span>SEND EMAIL</span>
-            </button>
-          </form>
+        {statusMsg && (
+          <div
+            className="error-banner"
+            style={{
+              background: 'rgba(22, 163, 74, 0.12)',
+              borderColor: 'rgba(22, 163, 74, 0.4)',
+              color: '#166534',
+            }}
+          >
+            <Mail size={16} />
+            <span>{statusMsg}</span>
+          </div>
         )}
-      </main>
 
-      {showInitialPopup && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <div className="modal-icon">
-              <Mail size={32} />
-            </div>
-            <h3>Enter today task</h3>
-            <p>Ready to submit your daily task log for {formattedDate}?</p>
-            <div className="modal-actions">
-              <button className="btn-primary" onClick={handleOpenEmailForm}>
-                Enter Today Task
-              </button>
-              <button
-                className="btn-outline"
-                onClick={() => setShowInitialPopup(false)}
+        <form onSubmit={handleAddTask}>
+          <div className="form-field">
+            <label>Task Title *</label>
+            <input
+              type="text"
+              placeholder="e.g., Complete weekly API testing"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-field">
+            <label>Task Details (Optional)</label>
+            <input
+              type="text"
+              placeholder="Short description..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          <div className="form-field">
+            <label>Supervisor Email (Optional - uses default if empty)</label>
+            <input
+              type="email"
+              placeholder="supervisor@company.com"
+              value={supervisorEmail}
+              onChange={(e) => setSupervisorEmail(e.target.value)}
+            />
+          </div>
+
+          <button type="submit" className="btn-primary send-btn" disabled={loading}>
+            <Plus size={18} />
+            <span>{loading ? 'SAVING & NOTIFYING...' : 'ADD TASK'}</span>
+          </button>
+        </form>
+      </div>
+
+      <div className="email-form-card">
+        <h3 style={{ marginBottom: '14px' }}>My Tasks ({tasks.length})</h3>
+
+        {tasks.length === 0 ? (
+          <p style={{ fontSize: '14px', color: '#365273', textAlign: 'center', padding: '16px 0' }}>
+            No tasks yet. Add your first task above!
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  background: 'rgba(255, 255, 255, 0.65)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(47, 97, 146, 0.2)',
+                }}
               >
-                Later
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1 }}
+                  onClick={() => handleToggleComplete(task)}
+                >
+                  {task.is_completed ? (
+                    <CheckCircle size={20} color="#16a34a" />
+                  ) : (
+                    <Circle size={20} color="#2f6192" />
+                  )}
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '14.5px',
+                        textDecoration: task.is_completed ? 'line-through' : 'none',
+                        color: task.is_completed ? '#64748b' : '#1f334d',
+                      }}
+                    >
+                      {task.title}
+                    </div>
+                    {task.description && (
+                      <div style={{ fontSize: '12.5px', color: '#475569', marginTop: '2px' }}>
+                        {task.description}
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-      {showFeedbackPopup && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <div className="modal-icon success-icon">
-              <CheckCircle size={36} />
-            </div>
-            <h3>Email Sent Successfully!</h3>
-            <p>Your task log for today has been sent.</p>
-            <button
-              className="btn-primary"
-              onClick={() => setShowFeedbackPopup(false)}
-            >
-              OK
-            </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteTask(task.id)}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}
+                  title="Delete Task"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

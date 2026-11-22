@@ -184,23 +184,6 @@ body {
   font-size: 12.5px;
 }
 
-.recaptcha-wrapper {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-  transform: scale(0.95);
-  transform-origin: center;
-}
-
-.captcha-error {
-  color: #991b1b;
-  font-size: 12.5px;
-  text-align: center;
-  margin-top: -12px;
-  margin-bottom: 16px;
-  font-weight: 500;
-}
-
 .btn-primary {
   width: 100%;
   padding: 14px;
@@ -338,6 +321,7 @@ body {
   padding: 16px 20px;
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.65);
   border-radius: 16px;
   margin-bottom: 28px;
@@ -387,6 +371,7 @@ body {
   width: 100%;
   background: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 20px;
   padding: 32px 28px;

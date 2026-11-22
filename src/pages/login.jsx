@@ -1,113 +1,167 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Lock } from 'lucide-react';
-import ReCAPTCHA from 'react-google-recaptcha';
+import axios from 'axios';
+import { User, Mail, Lock, KeyRound, AlertCircle } from 'lucide-react';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [captchaToken, setCaptchaToken] = useState(null);
-  const [captchaError, setCaptchaError] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState('credentials'); // 'credentials' | 'otp'
+  const [infoMsg, setInfoMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!captchaToken) {
-      setCaptchaError('Please verify that you are not a robot.');
-      return;
+    setErrorMsg('');
+    setInfoMsg('');
+    setLoading(true);
+
+    try {
+      const { data } = await axios.post('http://localhost:5000/api/login', {
+        email,
+        password,
+      });
+
+      if (data.requireOtp) {
+        setStep('otp');
+        setInfoMsg(data.message);
+      }
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Cannot connect to server.');
+    } finally {
+      setLoading(false);
     }
-    setCaptchaError('');
-    const extractedName = email.split('@')[0];
-    localStorage.setItem('userName', extractedName);
-    navigate('/dashboard');
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      const { data } = await axios.post('http://localhost:5000/api/verify-otp', {
+        email,
+        otp,
+      });
+
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('userId', data.user.id);
+      localStorage.setItem('userName', data.user.name);
+      localStorage.setItem('userEmail', data.user.email);
+      navigate('/dashboard');
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'OTP verification failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="auth-container">
-      <button className="back-btn" onClick={() => navigate('/')}>
-        <ArrowLeft size={18} />
-        <span>Go back</span>
-      </button>
-
       <div className="avatar-circle">
-        <User size={36} strokeWidth={1.5} />
+        {step === 'credentials' ? (
+          <User size={36} strokeWidth={1.5} />
+        ) : (
+          <KeyRound size={34} strokeWidth={1.5} />
+        )}
       </div>
 
-      <h1 className="auth-title">Welcome!</h1>
-      <p className="auth-subtitle">Please login to your account</p>
+      <h1 className="auth-title">{step === 'credentials' ? 'Welcome!' : 'Verify OTP'}</h1>
+      <p className="auth-subtitle">
+        {step === 'credentials'
+          ? 'Sign in to your Personal Assistant'
+          : `Enter the 6-digit code sent to ${email}`}
+      </p>
 
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <div className="input-group">
-          <Mail size={19} className="input-icon" />
-          <input
-            type="email"
-            placeholder="Email ID"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+      {errorMsg && (
+        <div className="error-banner">
+          <AlertCircle size={16} />
+          <span>{errorMsg}</span>
         </div>
+      )}
 
-        <div className="input-group">
-          <Lock size={19} className="input-icon" />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+      {infoMsg && (
+        <div
+          className="error-banner"
+          style={{
+            background: 'rgba(22, 163, 74, 0.12)',
+            borderColor: 'rgba(22, 163, 74, 0.4)',
+            color: '#166534',
+          }}
+        >
+          <Mail size={16} />
+          <span>{infoMsg}</span>
         </div>
+      )}
 
-        <div className="form-options">
-          <label className="checkbox-label">
+      {step === 'credentials' ? (
+        <form className="auth-form" onSubmit={handleLoginSubmit}>
+          <div className="input-group">
+            <Mail size={19} className="input-icon" />
             <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              type="email"
+              placeholder="Personal Email address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
-            <span>Remember me</span>
-          </label>
-          <button type="button" className="forgot-link">
-            Forgot Password?
+          </div>
+
+          <div className="input-group">
+            <Lock size={19} className="input-icon" />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'SENDING OTP...' : 'LOGIN'}
           </button>
-        </div>
+        </form>
+      ) : (
+        <form className="auth-form" onSubmit={handleVerifyOtp}>
+          <div className="input-group">
+            <KeyRound size={19} className="input-icon" />
+            <input
+              type="text"
+              placeholder="Enter 6-digit OTP"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              required
+            />
+          </div>
 
-        <div className="recaptcha-wrapper">
-          <ReCAPTCHA
-            sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"
-            onChange={(token) => {
-              setCaptchaToken(token);
-              setCaptchaError('');
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? 'VERIFYING...' : 'VERIFY & LOGIN'}
+          </button>
+
+          <button
+            type="button"
+            className="btn-outline"
+            style={{ marginTop: '12px' }}
+            onClick={() => {
+              setStep('credentials');
+              setOtp('');
+              setErrorMsg('');
+              setInfoMsg('');
             }}
-          />
-        </div>
-        {captchaError && <p className="captcha-error">{captchaError}</p>}
-
-        <button type="submit" className="btn-primary">
-          LOGIN
-        </button>
-      </form>
-
-      <div className="divider">
-        <span>or continue with</span>
-      </div>
-
-      <div className="social-buttons">
-        <button type="button" className="social-btn">
-          <span className="social-icon-circle">G</span>
-          <span>Google</span>
-        </button>
-        <button type="button" className="social-btn">
-          <span className="social-icon-circle">f</span>
-          <span>Facebook</span>
-        </button>
-      </div>
+          >
+            BACK TO LOGIN
+          </button>
+        </form>
+      )}
 
       <div className="auth-footer">
         Don&apos;t have an account?
-        <Link to="/signup">Sign up</Link>
+        <Link to="/register">Register</Link>
       </div>
     </div>
   );
