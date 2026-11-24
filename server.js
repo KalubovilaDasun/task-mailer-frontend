@@ -192,4 +192,78 @@ app.post('/api/tasks', async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO tasks (user_id, title, description) VALUES (?, ?, ?)',
-      [userId, title.trim(), description?.trim
+      [userId, title.trim(), description?.trim() || '']
+    );
+
+    const newTask = {
+      id: result.insertId,
+      user_id: userId,
+      title: title.trim(),
+      description: description?.trim() || '',
+      is_completed: 0,
+      created_at: new Date(),
+    };
+
+    const targetEmail = supervisorEmail?.trim() || process.env.SUPERVISOR_EMAIL;
+    let emailStatus = 'sent';
+
+    if (targetEmail) {
+      const today = new Date().toLocaleDateString('en-CA');
+      const emailBody = `Date: ${today}\n\nDear Supervisor,\n\nA new task has been added by ${userName || 'Employee'}:\n\nTask: ${newTask.title}\nDetails: ${newTask.description || 'No additional details'}\n\nBest Regards,\n${userName || 'Personal Assistant System'}`;
+
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_USER,
+          to: targetEmail,
+          subject: `New Task Added: ${newTask.title}`,
+          text: emailBody,
+        });
+      } catch (mailErr) {
+        console.error('EMAIL NOTIFICATION ERROR:', mailErr);
+        emailStatus = 'failed';
+      }
+    }
+
+    res.status(201).json({
+      message: 'Task added successfully.',
+      task: newTask,
+      emailStatus,
+    });
+  } catch (err) {
+    console.error('POST TASK ERROR:', err);
+    res.status(500).json({ message: 'Failed to create task.' });
+  }
+});
+
+// Toggle Task Complete Status
+app.patch('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_completed } = req.body;
+    await db.query('UPDATE tasks SET is_completed = ? WHERE id = ?', [is_completed ? 1 : 0, id]);
+    res.json({ message: 'Task updated.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update task.' });
+  }
+});
+
+// Delete Task
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM tasks WHERE id = ?', [id]);
+    res.json({ message: 'Task deleted.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete task.' });
+  }
+});
+
+// Local run වෙන විට පමණක් server එක listen කරයි
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
