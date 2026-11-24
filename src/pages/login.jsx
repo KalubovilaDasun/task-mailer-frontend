@@ -20,7 +20,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data } = await axios.post('http://localhost:5000/api/login', {
+      const { data } = await axios.post('https://task-mailer-backend.vercel.app/api/login', {
         email,
         password,
       });
@@ -42,7 +42,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data } = await axios.post('http://localhost:5000/api/verify-otp', {
+      const { data } = await axios.post('https://task-mailer-backend.vercel.app/api/verify-otp', {
         email,
         otp,
       });

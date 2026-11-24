@@ -17,7 +17,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const { data } = await axios.post('http://localhost:5000/api/register', {
+      const { data } = await axios.post('https://task-mailer-backend.vercel.app/api/register', {
         name,
         email,
         password,

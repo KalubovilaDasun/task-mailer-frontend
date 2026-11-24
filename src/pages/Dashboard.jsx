@@ -18,7 +18,7 @@ export default function Dashboard() {
 
   const fetchTasks = async () => {
     try {
-      const { data } = await axios.get(`http://localhost:5000/api/tasks?userId=${userId}`);
+      const { data } = await axios.get(`https://task-mailer-backend.vercel.app/api/tasks?userId=${userId}`);
       setTasks(data);
     } catch (err) {
       setErrorMsg('Failed to load tasks.');
@@ -38,7 +38,7 @@ export default function Dashboard() {
     setLoading(true);
 
     try {
-      const { data } = await axios.post('http://localhost:5000/api/tasks', {
+      const { data } = await axios.post('https://task-mailer-backend.vercel.app/api/tasks', {
         userId,
         userName,
         title,
@@ -65,7 +65,7 @@ export default function Dashboard() {
   const handleToggleComplete = async (task) => {
     try {
       const updatedStatus = !task.is_completed;
-      await axios.patch(`http://localhost:5000/api/tasks/${task.id}`, {
+      await axios.patch(`https://task-mailer-backend.vercel.app/api/tasks/${task.id}`, {
         is_completed: updatedStatus,
       });
       setTasks(
@@ -78,7 +78,7 @@ export default function Dashboard() {
 
   const handleDeleteTask = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/tasks/${id}`);
+      await axios.delete(`https://task-mailer-backend.vercel.app/api/tasks/${id}`);
       setTasks(tasks.filter((t) => t.id !== id));
     } catch (err) {
       setErrorMsg('Failed to delete task.');
