@@ -22,17 +22,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Verify SMTP Connection on Server Start
-transporter.verify((error) => {
-  if (error) {
-    console.error('SMTP CONNECTION ERROR:', error);
-  } else {
-    console.log('SMTP Server is ready to send emails.');
-  }
+// Backend එක Live දැයි පරීක්ෂා කිරීමට
+app.get('/', (req, res) => {
+  res.send('Task Mailer Backend is running on Vercel!');
 });
-
-// OTP තාවකාලිකව ගබඩා කරගැනීමට (විනාඩි 5කින් කල් ඉකුත් වේ)
-const otpStore = new Map();
 
 // T-03: User Registration
 app.post('/api/register', async (req, res) => {
@@ -93,7 +86,21 @@ app.post('/api/login', async (req, res) => {
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + 5 * 60 * 1000;
-    otpStore.set(email, { otp, expiresAt, user });
+
+    // OTP Table එක නැතිනම් ස්වයංක්‍රීයව සාදා OTP එක Save කරයි
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS otp_codes (
+        email VARCHAR(150) PRIMARY KEY,
+        otp VARCHAR(10) NOT NULL,
+        expires_at BIGINT NOT NULL
+      )
+    `);
+
+    await db.query(
+      `INSERT INTO otp_codes (email, otp, expires_at) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE otp = VALUES(otp), expires_at = VALUES(expires_at)`,
+      [email, otp, expiresAt]
+    );
 
     await transporter.sendMail({
       from: process.env.SMTP_USER,
@@ -113,37 +120,46 @@ app.post('/api/login', async (req, res) => {
 });
 
 // Verify OTP Endpoint
-app.post('/api/verify-otp', (req, res) => {
-  const { email, otp } = req.body;
-  const record = otpStore.get(email);
+app.post('/api/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const [records] = await db.query('SELECT * FROM otp_codes WHERE email = ?', [email]);
 
-  if (!record) {
-    return res.status(400).json({ message: 'No OTP found. Please login again.' });
+    if (records.length === 0) {
+      return res.status(400).json({ message: 'No OTP found. Please login again.' });
+    }
+
+    const record = records[0];
+
+    if (Date.now() > Number(record.expires_at)) {
+      await db.query('DELETE FROM otp_codes WHERE email = ?', [email]);
+      return res.status(400).json({ message: 'OTP has expired. Please login again.' });
+    }
+
+    if (record.otp !== otp.trim()) {
+      return res.status(401).json({ message: 'Invalid OTP code. Please try again.' });
+    }
+
+    await db.query('DELETE FROM otp_codes WHERE email = ?', [email]);
+
+    const [users] = await db.query('SELECT id, name, email FROM users WHERE email = ?', [email]);
+    const user = users[0];
+
+    const token = jwt.sign(
+      { id: user.id, name: user.name, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Login successful.',
+      token,
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+  } catch (err) {
+    console.error('VERIFY OTP ERROR:', err);
+    res.status(500).json({ message: 'Server error during OTP verification.' });
   }
-
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(email);
-    return res.status(400).json({ message: 'OTP has expired. Please login again.' });
-  }
-
-  if (record.otp !== otp.trim()) {
-    return res.status(401).json({ message: 'Invalid OTP code. Please try again.' });
-  }
-
-  const { user } = record;
-  otpStore.delete(email);
-
-  const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  res.json({
-    message: 'Login successful.',
-    token,
-    user: { id: user.id, name: user.name, email: user.email },
-  });
 });
 
 // T-05: GET /api/tasks (Fetch tasks for logged-in user)
@@ -176,73 +192,4 @@ app.post('/api/tasks', async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO tasks (user_id, title, description) VALUES (?, ?, ?)',
-      [userId, title.trim(), description?.trim() || '']
-    );
-
-    const newTask = {
-      id: result.insertId,
-      user_id: userId,
-      title: title.trim(),
-      description: description?.trim() || '',
-      is_completed: 0,
-      created_at: new Date(),
-    };
-
-    const targetEmail = supervisorEmail?.trim() || process.env.SUPERVISOR_EMAIL;
-    let emailStatus = 'sent';
-
-    if (targetEmail) {
-      const today = new Date().toLocaleDateString('en-CA');
-      const emailBody = `Date: ${today}\n\nDear Supervisor,\n\nA new task has been added by ${userName || 'Employee'}:\n\nTask: ${newTask.title}\nDetails: ${newTask.description || 'No additional details'}\n\nBest Regards,\n${userName || 'Personal Assistant System'}`;
-
-      try {
-        await transporter.sendMail({
-          from: process.env.SMTP_USER,
-          to: targetEmail,
-          subject: `New Task Added: ${newTask.title}`,
-          text: emailBody,
-        });
-      } catch (mailErr) {
-        console.error('EMAIL NOTIFICATION ERROR:', mailErr);
-        emailStatus = 'failed';
-      }
-    }
-
-    res.status(201).json({
-      message: 'Task added successfully.',
-      task: newTask,
-      emailStatus,
-    });
-  } catch (err) {
-    console.error('POST TASK ERROR:', err);
-    res.status(500).json({ message: 'Failed to create task.' });
-  }
-});
-
-// Toggle Task Complete Status
-app.patch('/api/tasks/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { is_completed } = req.body;
-    await db.query('UPDATE tasks SET is_completed = ? WHERE id = ?', [is_completed ? 1 : 0, id]);
-    res.json({ message: 'Task updated.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to update task.' });
-  }
-});
-
-// Delete Task
-app.delete('/api/tasks/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.query('DELETE FROM tasks WHERE id = ?', [id]);
-    res.json({ message: 'Task deleted.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to delete task.' });
-  }
-});
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+      [userId, title.trim(), description?.trim
