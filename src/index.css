@@ -542,3 +542,16 @@ body {
   flex-direction: column;
   gap: 10px;
 }
+
+.input-group input::placeholder {
+  color: #4a6584;
+  opacity: 0.85;
+}
+
+.input-group input:-webkit-autofill,
+.input-group input:-webkit-autofill:hover,
+.input-group input:-webkit-autofill:focus,
+.input-group input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1f334d !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
