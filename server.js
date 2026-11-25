@@ -181,7 +181,7 @@ app.get('/api/tasks', async (req, res) => {
   }
 });
 
-// T-05 & T-06: POST /api/tasks (Add new task + Auto Supervisor Email via SMTP)
+// T-05 & T-06: POST /api/tasks (Add new task + Supervisor Email only if provided)
 app.post('/api/tasks', async (req, res) => {
   try {
     const { userId, userName, title, description, supervisorEmail } = req.body;
@@ -204,8 +204,8 @@ app.post('/api/tasks', async (req, res) => {
       created_at: new Date(),
     };
 
-    const targetEmail = supervisorEmail?.trim() || process.env.SUPERVISOR_EMAIL;
-    let emailStatus = 'sent';
+    const targetEmail = supervisorEmail?.trim();
+    let emailStatus = targetEmail ? 'sent' : 'skipped';
 
     if (targetEmail) {
       const today = new Date().toLocaleDateString('en-CA');
@@ -258,7 +258,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// Local run වෙන විට පමණක් server එක listen කරයි
+// Local run
 if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
