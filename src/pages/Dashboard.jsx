@@ -31,10 +31,19 @@ export default function Dashboard() {
 
   const handleAddTask = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
-
     setErrorMsg('');
     setStatusMsg('');
+
+    if (!title.trim()) {
+      setErrorMsg('Please enter a task title.');
+      return;
+    }
+
+    if (!supervisorEmail.trim()) {
+      setErrorMsg('Please enter the supervisor email address.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -53,7 +62,7 @@ export default function Dashboard() {
       if (data.emailStatus === 'sent') {
         setStatusMsg('Task added and supervisor notified via email!');
       } else {
-        setStatusMsg('Task saved, but supervisor email failed. Check .env credentials.');
+        setStatusMsg('Task saved, but supervisor email failed. Check SMTP settings.');
       }
     } catch (err) {
       setErrorMsg(err.response?.data?.message || 'Failed to add task.');
@@ -127,7 +136,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        <form onSubmit={handleAddTask}>
+        <form onSubmit={handleAddTask} noValidate>
           <div className="form-field">
             <label>Task Title *</label>
             <input
@@ -150,12 +159,13 @@ export default function Dashboard() {
           </div>
 
           <div className="form-field">
-            <label>Supervisor Email (Optional - uses default if empty)</label>
+            <label>Supervisor Email *</label>
             <input
               type="email"
               placeholder="supervisor@company.com"
               value={supervisorEmail}
               onChange={(e) => setSupervisorEmail(e.target.value)}
+              required
             />
           </div>
 
